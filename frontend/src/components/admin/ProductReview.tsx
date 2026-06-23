@@ -19,27 +19,21 @@ export default function ProductReview() {
   const navigate = useNavigate();
   const { token } = useAuth();
 
-  const [product, setProduct] = useState<AdminProductDetail | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [fetchState, setFetchState] = useState<
+    | { status: 'loading' }
+    | { status: 'error'; message: string }
+    | { status: 'success'; product: AdminProductDetail }
+  >({ status: 'loading' });
+  const [reviewState, setReviewState] = useState({ isSubmitting: false, error: null as string | null, success: null as string | null });
 
   const fetchProduct = useCallback(async () => {
     if (!id) return;
-    setIsLoading(true);
-    setError(null);
+    setFetchState({ status: 'loading' });
     try {
-      const data = await apiRequest<AdminProductDetail>(
-        `/api/products/${id}`,
-        {},
-        token ?? undefined
-      );
-      setProduct(data);
+      const data = await apiRequest<AdminProductDetail>(`/api/products/${id}`, {}, token ?? undefined);
+      setFetchState({ status: 'success', product: data });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load product');
-    } finally {
-      setIsLoading(false);
+      setFetchState({ status: 'error', message: err instanceof Error ? err.message : 'Failed to load product' });
     }
   }, [id, token]);
 
@@ -47,44 +41,38 @@ export default function ProductReview() {
 
   async function handleReview(status: 'Approved' | 'Rejected') {
     if (!id) return;
-    setIsSubmitting(true);
-    setError(null);
+    setReviewState({ isSubmitting: true, error: null, success: null });
     try {
       await apiRequest(
         `/api/admin/products/${id}/review`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status }),
-        },
+        { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) },
         token ?? undefined
       );
-      setSuccessMessage(`Product has been ${status.toLowerCase()} successfully.`);
-      setProduct((prev) => (prev ? { ...prev, status } : prev));
+      setReviewState({ isSubmitting: false, error: null, success: `Product has been ${status.toLowerCase()} successfully.` });
+      if (fetchState.status === 'success') {
+        setFetchState({ status: 'success', product: { ...fetchState.product, status } });
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to submit review');
-    } finally {
-      setIsSubmitting(false);
+      setReviewState({ isSubmitting: false, error: err instanceof Error ? err.message : 'Failed to submit review', success: null });
     }
   }
 
-  if (isLoading) return <LoadingState fullScreen />;
+  if (fetchState.status === 'loading') return <LoadingState fullScreen />;
 
-  if (error && !product) {
+  if (fetchState.status === 'error') {
     return (
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Button variant="ghost" size="sm" onClick={() => navigate('/admin/products')}>
           ← Back to Products
         </Button>
         <div className="flex items-center justify-center mt-16">
-          <p className="text-red-600">{error}</p>
+          <p className="text-red-600">{fetchState.message}</p>
         </div>
       </div>
     );
   }
 
-  if (!product) return null;
-
+  const { product } = fetchState;
   const isSubmitted = product.status === 'Submitted';
 
   return (
@@ -95,15 +83,15 @@ export default function ProductReview() {
         </Button>
       </div>
 
-      {successMessage && (
+      {reviewState.success && (
         <div className="mb-6">
-          <InlineSuccess message={successMessage} />
+          <InlineSuccess message={reviewState.success} />
         </div>
       )}
 
-      {error && (
+      {reviewState.error && (
         <div className="mb-6">
-          <InlineError message={error} />
+          <InlineError message={reviewState.error} />
         </div>
       )}
 
@@ -112,22 +100,10 @@ export default function ProductReview() {
           <div className="flex items-center justify-between flex-wrap gap-3">
             <h1 className="text-xl font-semibold text-gray-900">Product Review</h1>
             <div className="flex items-center gap-2">
-              <Button
-                variant="primary"
-                size="sm"
-                isLoading={isSubmitting}
-                disabled={isSubmitting || !isSubmitted}
-                onClick={() => handleReview('Approved')}
-              >
+              <Button variant="primary" size="sm" isLoading={reviewState.isSubmitting} disabled={reviewState.isSubmitting || !isSubmitted} onClick={() => handleReview('Approved')}>
                 Approve
               </Button>
-              <Button
-                variant="danger"
-                size="sm"
-                isLoading={isSubmitting}
-                disabled={isSubmitting || !isSubmitted}
-                onClick={() => handleReview('Rejected')}
-              >
+              <Button variant="danger" size="sm" isLoading={reviewState.isSubmitting} disabled={reviewState.isSubmitting || !isSubmitted} onClick={() => handleReview('Rejected')}>
                 Reject
               </Button>
             </div>

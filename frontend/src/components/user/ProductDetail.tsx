@@ -49,37 +49,32 @@ export default function ProductDetail() {
   const navigate  = useNavigate();
   const { token } = useAuth();
 
-  const [product, setProduct]               = useState<ProductWithVariants | null>(null);
-  const [isLoading, setIsLoading]           = useState(true);
-  const [error, setError]                   = useState<string | null>(null);
-  const [errorType, setErrorType]           = useState<'403' | '404' | 'generic' | null>(null);
+  const [fetchState, setFetchState] = useState<
+    | { status: 'loading' }
+    | { status: 'error'; message: string; type: '403' | '404' | 'generic' }
+    | { status: 'success'; product: ProductWithVariants }
+  >({ status: 'loading' });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [isDeleting, setIsDeleting]         = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchProduct = useCallback(async () => {
     if (!id) return;
-    setIsLoading(true);
-    setError(null);
-    setErrorType(null);
+    setFetchState({ status: 'loading' });
     try {
       const response = await fetch(
         `${process.env.REACT_APP_API_URL || ''}/api/products/${id}`,
         { headers: token ? { Authorization: `Bearer ${token}` } : {} }
       );
-      if (response.status === 403) { setErrorType('403'); setError("You don't have permission to view this product"); return; }
-      if (response.status === 404) { setErrorType('404'); setError('Product not found'); return; }
+      if (response.status === 403) { setFetchState({ status: 'error', message: "You don't have permission to view this product", type: '403' }); return; }
+      if (response.status === 404) { setFetchState({ status: 'error', message: 'Product not found', type: '404' }); return; }
       if (!response.ok) {
         const body = await response.json().catch(() => ({ message: 'Request failed' }));
-        setErrorType('generic');
-        setError(body.message || 'Failed to load product');
+        setFetchState({ status: 'error', message: body.message || 'Failed to load product', type: 'generic' });
         return;
       }
-      setProduct(await response.json());
+      setFetchState({ status: 'success', product: await response.json() });
     } catch {
-      setErrorType('generic');
-      setError('Failed to load product');
-    } finally {
-      setIsLoading(false);
+      setFetchState({ status: 'error', message: 'Failed to load product', type: 'generic' });
     }
   }, [id, token]);
 
@@ -99,16 +94,16 @@ export default function ProductDetail() {
       }
       navigate('/user/products');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Delete failed');
+      setFetchState({ status: 'error', message: err instanceof Error ? err.message : 'Delete failed', type: 'generic' });
       setShowDeleteModal(false);
     } finally {
       setIsDeleting(false);
     }
   }
 
-  if (isLoading) return <LoadingState fullScreen />;
+  if (fetchState.status === 'loading') return <LoadingState fullScreen />;
 
-  if (error && (errorType === '403' || errorType === '404')) {
+  if (fetchState.status === 'error' && (fetchState.type === '403' || fetchState.type === '404')) {
     return (
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Button variant="ghost" size="sm" onClick={() => navigate('/user/products')} className="-ml-2 mb-8">
@@ -123,14 +118,16 @@ export default function ProductDetail() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
             </svg>
           </div>
-          <p className="text-lg font-semibold text-gray-700">{errorType === '404' ? 'Product not found' : 'Access denied'}</p>
-          <p className="text-sm text-gray-500">{error}</p>
+          <p className="text-lg font-semibold text-gray-700">{fetchState.type === '404' ? 'Product not found' : 'Access denied'}</p>
+          <p className="text-sm text-gray-500">{fetchState.message}</p>
         </div>
       </div>
     );
   }
 
-  if (error || !product) return <ErrorState message={error || 'Something went wrong'} fullScreen />;
+  if (fetchState.status === 'error') return <ErrorState message={fetchState.message} fullScreen />;
+
+  const { product } = fetchState;
 
   const status        = product.status as ProductStatus;
   const statusConfig  = STATUS_CONFIG[status] ?? STATUS_CONFIG.Submitted;

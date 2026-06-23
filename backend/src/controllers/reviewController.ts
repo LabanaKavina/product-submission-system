@@ -1,5 +1,21 @@
 import { Request, Response, NextFunction } from 'express';
-import { ReviewService } from '../services/reviewService';
+import { ReviewService, CsvRow } from '../services/reviewService';
+
+function toCsv(rows: CsvRow[]): string {
+  if (rows.length === 0) return '';
+  const headers = Object.keys(rows[0]) as (keyof CsvRow)[];
+  const escape = (val: string | number) => {
+    const str = String(val);
+    return str.includes(',') || str.includes('"') || str.includes('\n')
+      ? `"${str.replace(/"/g, '""')}"`
+      : str;
+  };
+  const lines = [
+    headers.join(','),
+    ...rows.map(row => headers.map(h => escape(row[h])).join(',')),
+  ];
+  return lines.join('\r\n');
+}
 
 class ReviewController {
   private reviewService: ReviewService;
@@ -20,6 +36,20 @@ class ReviewController {
         order
       });
       res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  exportProducts = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { status, search, sortBy, order } = req.query as Record<string, string>;
+      const rows = await this.reviewService.exportProducts({ status, search, sortBy, order });
+      const csv = toCsv(rows);
+      const filename = `products-export-${new Date().toISOString().slice(0, 10)}.csv`;
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.status(200).send(csv);
     } catch (error) {
       next(error);
     }

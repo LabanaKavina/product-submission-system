@@ -235,6 +235,24 @@
       "name": "Products — Admin",
       "item": [
         {
+          "name": "Export Products as CSV",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/products/export?sortBy=createdAt&order=DESC",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "products", "export"],
+              "query": [
+                { "key": "sortBy", "value": "createdAt", "description": "name | status | createdAt" },
+                { "key": "order", "value": "DESC", "description": "ASC or DESC" },
+                { "key": "search", "value": "", "description": "Filter by product name", "disabled": true },
+                { "key": "status", "value": "Approved", "description": "Filter by status: Submitted | Approved | Rejected", "disabled": true }
+              ]
+            },
+            "description": "Admin only. Downloads all matching products as a CSV file. Respects the same search/status/sort filters as the list endpoint but returns ALL rows (no pagination).\n\nEach product is expanded into one row per variant. The file is named `products-export-YYYY-MM-DD.csv`.\n\nColumns: Product ID, Product Name, Description, Status, Submitted By, Variant Name, Variant Price (INR), Submitted At."
+          }
+        },
+        {
           "name": "Get All Products",
           "request": {
             "method": "GET",

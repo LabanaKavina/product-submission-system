@@ -13,6 +13,17 @@ interface ProductFilters {
   order?: string;
 }
 
+export interface CsvRow {
+  'Product ID': number;
+  'Product Name': string;
+  'Description': string;
+  'Status': string;
+  'Submitted By': string;
+  'Variant Name': string;
+  'Variant Price (INR)': number | string;
+  'Submitted At': string;
+}
+
 /** Lightweight shape returned by the admin product list. */
 export interface AdminProductListItem {
   id: number;
@@ -106,6 +117,72 @@ export class ReviewService {
         totalPages: Math.ceil(count / limit)
       }
     };
+  }
+
+  async exportProducts(filters: Omit<ProductFilters, 'page' | 'limit'> = {}): Promise<CsvRow[]> {
+    const where: any = {};
+
+    if (filters.status) where.status = filters.status;
+    if (filters.search) where.name = { [Op.like]: `%${filters.search}%` };
+
+    const allowedSortFields: Record<string, string> = {
+      name: 'name',
+      status: 'status',
+      createdAt: 'createdAt',
+    };
+    const sortField = filters.sortBy && allowedSortFields[filters.sortBy]
+      ? allowedSortFields[filters.sortBy]
+      : 'createdAt';
+    const sortOrder = filters.order?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+    const rows = await Product.findAll({
+      where,
+      attributes: ['id', 'name', 'description', 'status', 'createdAt'],
+      include: [
+        { model: User, as: 'user', attributes: ['email'] },
+        { model: Variant, as: 'variants', attributes: ['name', 'price'] },
+      ],
+      order: [[sortField, sortOrder]],
+    });
+
+    const csvRows: CsvRow[] = [];
+
+    for (const product of rows) {
+      const p = product.toJSON() as any;
+      const variants: { name: string; price: number }[] = p.variants ?? [];
+
+      if (variants.length === 0) {
+        csvRows.push({
+          'Product ID': p.id,
+          'Product Name': p.name,
+          'Description': p.description,
+          'Status': p.status,
+          'Submitted By': p.user?.email ?? '',
+          'Variant Name': '',
+          'Variant Price (INR)': '',
+          'Submitted At': new Date(p.createdAt).toLocaleDateString('en-IN', {
+            day: 'numeric', month: 'short', year: 'numeric',
+          }),
+        });
+      } else {
+        for (const variant of variants) {
+          csvRows.push({
+            'Product ID': p.id,
+            'Product Name': p.name,
+            'Description': p.description,
+            'Status': p.status,
+            'Submitted By': p.user?.email ?? '',
+            'Variant Name': variant.name,
+            'Variant Price (INR)': Number(variant.price),
+            'Submitted At': new Date(p.createdAt).toLocaleDateString('en-IN', {
+              day: 'numeric', month: 'short', year: 'numeric',
+            }),
+          });
+        }
+      }
+    }
+
+    return csvRows;
   }
 
   async reviewProduct(productId: number, status: string): Promise<any> {

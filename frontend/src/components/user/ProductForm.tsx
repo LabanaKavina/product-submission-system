@@ -23,12 +23,14 @@ export default function ProductForm() {
   const navigate = useNavigate();
   const { token } = useAuth();
 
-  const [productName, setProductName]   = useState('');
-  const [description, setDescription]   = useState('');
-  const [variants, setVariants]         = useState<VariantFormData[]>([{ name: '', price: '', image: null, previewUrl: null }]);
-  const [errors, setErrors]             = useState<ProductFormErrors>(emptyFormErrors(1));
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError]   = useState<string | null>(null);
+  const [fields, setFields] = useState({ productName: '', description: '' });
+  const [variants, setVariants] = useState<VariantFormData[]>([
+    { name: '', price: '', image: null, previewUrl: null },
+  ]);
+  const [errors, setErrors] = useState<ProductFormErrors>(emptyFormErrors(1));
+  const [submitState, setSubmitState] = useState({ isSubmitting: false, error: null as string | null });
+
+  const { productName, description } = fields;
 
   const isFormValid =
     productName.trim().length > 0 &&
@@ -45,13 +47,13 @@ export default function ProductForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitError(null);
+    setSubmitState({ isSubmitting: false, error: null });
 
     const { errors: validationErrors, isValid } = validateProductForm(productName, description, variants, true);
     if (!isValid) { setErrors(validationErrors); return; }
 
     setErrors(emptyFormErrors(variants.length));
-    setIsSubmitting(true);
+    setSubmitState({ isSubmitting: true, error: null });
     try {
       const formData = new FormData();
       formData.append('name', productName.trim());
@@ -64,15 +66,14 @@ export default function ProductForm() {
       await apiRequest<ProductWithVariants>('/api/products', { method: 'POST', body: formData }, token ?? undefined);
       navigate('/user/products');
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Failed to submit product');
+      setSubmitState({ isSubmitting: false, error: err instanceof Error ? err.message : 'Failed to submit product' });
     } finally {
-      setIsSubmitting(false);
+      setSubmitState(prev => ({ ...prev, isSubmitting: false }));
     }
   };
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-
       <div className="mb-8">
         <Button variant="ghost" size="sm" onClick={() => navigate('/user/products')} className="mb-4 -ml-2">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -86,7 +87,6 @@ export default function ProductForm() {
 
       <form id="product-form" onSubmit={handleSubmit} noValidate>
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-
           <div className="lg:col-span-2">
             <Card>
               <CardHeader className="bg-gray-50">
@@ -101,7 +101,7 @@ export default function ProductForm() {
                 <Input
                   label="Product Name"
                   value={productName}
-                  onChange={(e) => setProductName(e.target.value)}
+                  onChange={(e) => setFields(f => ({ ...f, productName: e.target.value }))}
                   error={errors.name}
                   placeholder="e.g. Classic Leather Bag"
                   required
@@ -109,7 +109,7 @@ export default function ProductForm() {
                 <Textarea
                   label="Description"
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  onChange={(e) => setFields(f => ({ ...f, description: e.target.value }))}
                   error={errors.description}
                   placeholder="Describe your product — materials, features, intended use…"
                   rows={6}
@@ -128,21 +128,19 @@ export default function ProductForm() {
           </div>
         </div>
 
-        {submitError && <div className="mt-6"><InlineError message={submitError} /></div>}
+        {submitState.error && <div className="mt-6"><InlineError message={submitState.error} /></div>}
         <div className="h-20" />
       </form>
 
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/90 backdrop-blur border-t border-gray-200 shadow-[0_-2px_12px_rgba(0,0,0,0.06)]">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-3">
-          <p className="text-xs text-gray-400 hidden sm:block">
-            All fields must be filled before submitting.
-          </p>
+          <p className="text-xs text-gray-400 hidden sm:block">All fields must be filled before submitting.</p>
           <div className="flex items-center gap-3 ml-auto">
-            <Button type="button" variant="secondary" onClick={() => navigate('/user/products')} disabled={isSubmitting}>
+            <Button type="button" variant="secondary" onClick={() => navigate('/user/products')} disabled={submitState.isSubmitting}>
               Cancel
             </Button>
-            <Button form="product-form" type="submit" variant="primary" isLoading={isSubmitting} disabled={!isFormValid || isSubmitting}>
-              {isSubmitting ? 'Submitting…' : 'Submit Product'}
+            <Button form="product-form" type="submit" variant="primary" isLoading={submitState.isSubmitting} disabled={!isFormValid || submitState.isSubmitting}>
+              {submitState.isSubmitting ? 'Submitting…' : 'Submit Product'}
             </Button>
           </div>
         </div>

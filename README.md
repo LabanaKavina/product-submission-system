@@ -71,10 +71,11 @@ Products go through three statuses: `Submitted` → `Approved` or `Rejected`.
 - Per-user unique product name validation
 - Product edit and soft-delete (Submitted status only)
 - Admin product list with search, filter by status, and sort
+- **Admin CSV export** — download all products (with variant details) filtered by current search/status/sort as a `.csv` file
 - Approve / Reject workflow for admins
 - Lightweight list API responses (only required fields fetched)
 - Sticky header + filter bar + pagination footer on list pages
-- INR currency formatting throughout
+- INR (₹) currency formatting throughout
 - Scroll-to-top on route change
 - Responsive layout with mobile drawer navigation
 
@@ -483,6 +484,28 @@ Get all products across all users (paginated).
   "pagination": { "total": 11, "page": 1, "limit": 10, "totalPages": 2 }
 }
 ```
+
+---
+
+#### GET `/api/admin/products/export`
+Download all matching products as a CSV file. Accepts the same filter/sort params as the list endpoint but returns **all rows** (no pagination). Each product is expanded into one row per variant.
+
+**Query params:** same as `GET /api/admin/products` (`search`, `status`, `sortBy`, `order`) — no `page` or `limit`.
+
+**Response:** `text/csv` file download named `products-export-YYYY-MM-DD.csv`
+
+**CSV columns:**
+
+| Column | Description |
+|---|---|
+| Product ID | |
+| Product Name | |
+| Description | |
+| Status | Submitted / Approved / Rejected |
+| Submitted By | User email |
+| Variant Name | One row per variant |
+| Variant Price (INR) | |
+| Submitted At | Formatted date |
 
 ---
 

@@ -21,53 +21,70 @@ const SORT_OPTIONS: { value: SortBy; label: string }[] = [
   { value: 'status', label: 'Status' },
 ];
 
+const DEFAULT_PAGINATION = { total: 0, page: 1, limit: 10, totalPages: 1 };
+
 export default function ProductList() {
-  const { token }  = useAuth();
-  const navigate   = useNavigate();
+  const { token } = useAuth();
+  const navigate  = useNavigate();
 
-  const [products, setProducts]     = useState<AdminProductListItem[]>([]);
-  const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 10, totalPages: 1 });
-  const [loading, setLoading]       = useState(false);
-  const [error, setError]           = useState<string | null>(null);
+  const [listState, setListState] = useState<{
+    products: AdminProductListItem[];
+    pagination: typeof DEFAULT_PAGINATION;
+    loading: boolean;
+    error: string | null;
+  }>({ products: [], pagination: DEFAULT_PAGINATION, loading: false, error: null });
 
-  const [page, setPage]                 = useState(1);
-  const [search, setSearch]             = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('');
-  const [sortBy, setSortBy]             = useState<SortBy>('createdAt');
-  const [order, setOrder]               = useState<Order>('DESC');
+  const [query, setQuery] = useState({
+    search: '',
+    statusFilter: '' as StatusFilter,
+    sortBy: 'createdAt' as SortBy,
+    order: 'DESC' as Order,
+    page: 1,
+  });
 
-  const debouncedSearch = useDebounce(search, 400);
+  const [isExporting, setIsExporting] = useState(false);
 
-  const pageRef = useRef(page);
-  pageRef.current = page;
+  const debouncedSearch = useDebounce(query.search, 400);
 
-  const prevFilters = useRef({ search: debouncedSearch, status: statusFilter, sortBy, order });
+  const pageRef = useRef(query.page);
+  pageRef.current = query.page;
+
+  const prevFilters = useRef({
+    search: debouncedSearch,
+    statusFilter: query.statusFilter,
+    sortBy: query.sortBy,
+    order: query.order,
+  });
+
   const [fetchTrigger, incTrigger] = useReducer((n: number) => n + 1, 0);
 
   useEffect(() => {
     const f = prevFilters.current;
-    const changed = f.search !== debouncedSearch || f.status !== statusFilter || f.sortBy !== sortBy || f.order !== order;
+    const changed =
+      f.search !== debouncedSearch ||
+      f.statusFilter !== query.statusFilter ||
+      f.sortBy !== query.sortBy ||
+      f.order !== query.order;
     if (changed) {
-      prevFilters.current = { search: debouncedSearch, status: statusFilter, sortBy, order };
+      prevFilters.current = { search: debouncedSearch, statusFilter: query.statusFilter, sortBy: query.sortBy, order: query.order };
       pageRef.current = 1;
-      setPage(1);
+      setQuery(q => ({ ...q, page: 1 }));
     }
-  }, [debouncedSearch, statusFilter, sortBy, order]);
+  }, [debouncedSearch, query.statusFilter, query.sortBy, query.order]);
 
   useEffect(() => {
     let cancelled = false;
 
     const doFetch = async () => {
-      setLoading(true);
-      setError(null);
+      setListState(s => ({ ...s, loading: true, error: null }));
       try {
         const params = new URLSearchParams();
         params.set('page', String(pageRef.current));
         params.set('limit', '10');
-        if (debouncedSearch) params.set('search', debouncedSearch);
-        if (statusFilter)    params.set('status', statusFilter);
-        params.set('sortBy', sortBy);
-        params.set('order', order);
+        if (debouncedSearch)         params.set('search', debouncedSearch);
+        if (query.statusFilter)      params.set('status', query.statusFilter);
+        params.set('sortBy', query.sortBy);
+        params.set('order', query.order);
 
         const data = await apiRequest<PaginatedResponse<AdminProductListItem>>(
           `/api/admin/products?${params.toString()}`,
@@ -75,36 +92,69 @@ export default function ProductList() {
           token ?? undefined
         );
         if (!cancelled) {
-          setProducts(data.products ?? []);
-          setPagination(data.pagination ?? { total: 0, page: pageRef.current, limit: 10, totalPages: 1 });
+          setListState({
+            products: data.products ?? [],
+            pagination: data.pagination ?? { ...DEFAULT_PAGINATION, page: pageRef.current },
+            loading: false,
+            error: null,
+          });
         }
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load products');
-      } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setListState(s => ({ ...s, loading: false, error: err instanceof Error ? err.message : 'Failed to load products' }));
       }
     };
 
     doFetch();
     return () => { cancelled = true; };
-  }, [debouncedSearch, statusFilter, sortBy, order, token, fetchTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, query.statusFilter, query.sortBy, query.order, token, fetchTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleSortBy(value: SortBy) {
-    if (sortBy === value) {
-      setOrder((prev) => (prev === 'ASC' ? 'DESC' : 'ASC'));
-    } else {
-      setSortBy(value);
-      setOrder('DESC');
+    setQuery(q => ({
+      ...q,
+      sortBy: value,
+      order: q.sortBy === value ? (q.order === 'ASC' ? 'DESC' : 'ASC') : 'DESC',
+    }));
+  }
+
+  async function handleExport() {
+    setIsExporting(true);
+    try {
+      const params = new URLSearchParams();
+      if (debouncedSearch)        params.set('search', debouncedSearch);
+      if (query.statusFilter)     params.set('status', query.statusFilter);
+      params.set('sortBy', query.sortBy);
+      params.set('order', query.order);
+
+      const base = process.env.REACT_APP_API_URL || '';
+      const response = await fetch(`${base}/api/admin/products/export?${params.toString()}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!response.ok) throw new Error('Export failed');
+
+      const blob = await response.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `products-export-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+    } finally {
+      setIsExporting(false);
     }
   }
 
+  const { products, pagination, loading, error } = listState;
+  const { page, statusFilter, sortBy, order } = query;
   const start = pagination.total === 0 ? 0 : (page - 1) * pagination.limit + 1;
   const end   = Math.min(page * pagination.limit, pagination.total);
 
   return (
     <div className="flex flex-col h-full">
 
-      <div className="sticky top-0 md:top-0 top-14 z-20 bg-gray-50 border-b border-gray-100 shadow-sm">
+      <div className="sticky top-0 z-20 bg-gray-50 border-b border-gray-100 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
           <div className="flex items-center justify-between py-4">
@@ -118,14 +168,26 @@ export default function ProductList() {
                 </p>
               )}
             </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleExport}
+              isLoading={isExporting}
+              disabled={isExporting || pagination.total === 0}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+              </svg>
+              {isExporting ? 'Exporting…' : 'Export CSV'}
+            </Button>
           </div>
 
           <div className="flex flex-wrap gap-3 items-center pb-3">
             <div className="flex-1 min-w-[200px]">
               <Input
                 placeholder="Search products…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                value={query.search}
+                onChange={(e) => setQuery(q => ({ ...q, search: e.target.value }))}
                 leftIcon={
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 15.803a7.5 7.5 0 0010.607 10.607z" />
@@ -141,7 +203,7 @@ export default function ProductList() {
                   <button
                     key={opt.value}
                     type="button"
-                    onClick={() => setStatusFilter(opt.value as StatusFilter)}
+                    onClick={() => { setQuery(q => ({ ...q, statusFilter: opt.value as StatusFilter, page: 1 })); pageRef.current = 1; }}
                     className={`px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-primary-300 ${
                       active
                         ? 'bg-primary-600 text-white border-primary-600 shadow-sm'
@@ -158,7 +220,7 @@ export default function ProductList() {
               <span className="text-xs text-gray-500 mr-1">Sort:</span>
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as SortBy)}
+                onChange={(e) => setQuery(q => ({ ...q, sortBy: e.target.value as SortBy }))}
                 className="rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-500 bg-white"
               >
                 {SORT_OPTIONS.map((opt) => (
@@ -207,35 +269,17 @@ export default function ProductList() {
                         className="hover:bg-gray-50 cursor-pointer transition-colors"
                         onClick={() => navigate(`/admin/products/${product.id}/review`)}
                       >
-                        <td className="px-5 py-3.5 font-medium text-gray-900 whitespace-nowrap">
-                          {product.name || '—'}
-                        </td>
-                        <td className="px-5 py-3.5 text-gray-500 whitespace-nowrap">
-                          {product.userEmail || '—'}
-                        </td>
+                        <td className="px-5 py-3.5 font-medium text-gray-900 whitespace-nowrap">{product.name || '—'}</td>
+                        <td className="px-5 py-3.5 text-gray-500 whitespace-nowrap">{product.userEmail || '—'}</td>
                         <td className="px-5 py-3.5 whitespace-nowrap">
-                          <Badge
-                            variant={STATUS_BADGE_VARIANT[product.status] ?? 'default'}
-                            label={product.status || 'Unknown'}
-                          />
+                          <Badge variant={STATUS_BADGE_VARIANT[product.status] ?? 'default'} label={product.status || 'Unknown'} />
                         </td>
+                        <td className="px-5 py-3.5 text-gray-500 whitespace-nowrap">{product.variantCount ?? 0}</td>
                         <td className="px-5 py-3.5 text-gray-500 whitespace-nowrap">
-                          {product.variantCount ?? 0}
+                          {product.createdAt ? new Date(product.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
                         </td>
-                        <td className="px-5 py-3.5 text-gray-500 whitespace-nowrap">
-                          {product.createdAt
-                            ? new Date(product.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-                            : '—'}
-                        </td>
-                        <td
-                          className="px-5 py-3.5 whitespace-nowrap"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => navigate(`/admin/products/${product.id}/review`)}
-                          >
+                        <td className="px-5 py-3.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="sm" onClick={() => navigate(`/admin/products/${product.id}/review`)}>
                             Review
                           </Button>
                         </td>
@@ -252,27 +296,23 @@ export default function ProductList() {
       {!loading && !error && pagination.total > 0 && (
         <div className="sticky bottom-0 z-20 bg-gray-50 border-t border-gray-100 shadow-[0_-1px_6px_rgba(0,0,0,0.06)]">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-gray-500">
-              Showing {start}–{end} of {pagination.total} products
-            </p>
+            <p className="text-sm text-gray-500">Showing {start}–{end} of {pagination.total} products</p>
             {pagination.totalPages > 1 && (
               <div className="flex items-center gap-2">
                 <Button
                   variant="secondary"
                   size="sm"
                   disabled={page <= 1}
-                  onClick={() => { pageRef.current = page - 1; setPage(p => p - 1); incTrigger(); }}
+                  onClick={() => { pageRef.current = page - 1; setQuery(q => ({ ...q, page: q.page - 1 })); incTrigger(); }}
                 >
                   ← Previous
                 </Button>
-                <span className="text-sm text-gray-600 px-1">
-                  Page {page} of {pagination.totalPages}
-                </span>
+                <span className="text-sm text-gray-600 px-1">Page {page} of {pagination.totalPages}</span>
                 <Button
                   variant="secondary"
                   size="sm"
                   disabled={page >= pagination.totalPages}
-                  onClick={() => { pageRef.current = page + 1; setPage(p => p + 1); incTrigger(); }}
+                  onClick={() => { pageRef.current = page + 1; setQuery(q => ({ ...q, page: q.page + 1 })); incTrigger(); }}
                 >
                   Next →
                 </Button>
