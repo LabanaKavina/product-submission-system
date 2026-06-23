@@ -1,0 +1,298 @@
+{
+  "info": {
+    "name": "Product Submission System",
+    "description": "Complete API collection for the Product Submission System.\n\n**Setup:**\n1. Set the `baseUrl` variable to your backend URL (default: http://localhost:5000)\n2. Run the Login request first — the token is saved automatically to the `token` variable\n3. All subsequent requests use the saved token automatically",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "productId",
+      "value": "1",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login as User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.token) {",
+                  "  pm.collectionVariables.set('token', res.token);",
+                  "  console.log('Token saved:', res.token.substring(0, 20) + '...');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"user123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Logs in as a regular User. The JWT token is automatically saved to the `token` collection variable."
+          }
+        },
+        {
+          "name": "Login as Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.token) {",
+                  "  pm.collectionVariables.set('token', res.token);",
+                  "  console.log('Admin token saved');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Logs in as Admin. The JWT token is automatically saved to the `token` collection variable."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Products — User",
+      "item": [
+        {
+          "name": "Get My Products",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/products/my?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "my"],
+              "query": [
+                { "key": "page", "value": "1", "description": "Page number (default: 1)" },
+                { "key": "limit", "value": "10", "description": "Items per page (default: 10)" },
+                { "key": "search", "value": "", "description": "Filter by product name", "disabled": true },
+                { "key": "status", "value": "Submitted", "description": "Filter by status: Submitted | Approved | Rejected", "disabled": true }
+              ]
+            },
+            "description": "Returns the authenticated user's products. Response contains a lightweight list (id, name, status, createdAt, variantCount, coverImagePath) plus pagination."
+          }
+        },
+        {
+          "name": "Get Product by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.id) {",
+                  "  pm.collectionVariables.set('productId', res.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/products/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "{{productId}}"]
+            },
+            "description": "Returns full product detail with all variant fields. Users can only access their own products. Admins can access any."
+          }
+        },
+        {
+          "name": "Create Product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.id) {",
+                  "  pm.collectionVariables.set('productId', res.id);",
+                  "  console.log('Product ID saved:', res.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "name", "value": "Classic Leather Bag", "type": "text", "description": "Product name (unique per user, max 255 chars)" },
+                { "key": "description", "value": "A handcrafted leather bag made from genuine cowhide.", "type": "text", "description": "Product description (max 2000 chars)" },
+                { "key": "variants[0][name]", "value": "Brown / Medium", "type": "text" },
+                { "key": "variants[0][price]", "value": "2500", "type": "text", "description": "Price in INR (must be positive)" },
+                { "key": "images", "type": "file", "src": [], "description": "Image file for variant 0 (JPEG, PNG, or WebP)" },
+                { "key": "variants[1][name]", "value": "Black / Large", "type": "text", "disabled": true },
+                { "key": "variants[1][price]", "value": "2800", "type": "text", "disabled": true },
+                { "key": "images", "type": "file", "src": [], "disabled": true, "description": "Image file for variant 1" }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/products",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products"]
+            },
+            "description": "Creates a product with one or more variants. Send as multipart/form-data.\n\n- `images` files are matched to variants by their array index order.\n- At least one variant is required.\n- Product name must be unique for this user."
+          }
+        },
+        {
+          "name": "Update Product",
+          "request": {
+            "method": "PUT",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "name", "value": "Classic Leather Bag v2", "type": "text" },
+                { "key": "description", "value": "Updated description.", "type": "text" },
+                { "key": "variants[0][name]", "value": "Brown / Medium", "type": "text" },
+                { "key": "variants[0][price]", "value": "2700", "type": "text" },
+                { "key": "variants[0][existingImagePath]", "value": "uploads/images-xxx.png", "type": "text", "description": "Pass this to keep the existing image. Omit and send a file in `images` to replace it." },
+                { "key": "images", "type": "file", "src": [], "disabled": true, "description": "New image file (omit if using existingImagePath)" }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/products/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "{{productId}}"]
+            },
+            "description": "Updates a product. Only allowed when status is `Submitted`.\n\nFor each variant, either send a new image file in `images` OR pass `existingImagePath` to keep the current image. You cannot do both for the same variant."
+          }
+        },
+        {
+          "name": "Delete Product",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/products/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products", "{{productId}}"]
+            },
+            "description": "Soft-deletes the product (sets deletedAt). Only the owner can delete. Returns 204 No Content on success."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Products — Admin",
+      "item": [
+        {
+          "name": "Get All Products",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/products?page=1&limit=10&sortBy=createdAt&order=DESC",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "products"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" },
+                { "key": "sortBy", "value": "createdAt", "description": "Sort field: name | status | createdAt" },
+                { "key": "order", "value": "DESC", "description": "ASC or DESC" },
+                { "key": "search", "value": "", "description": "Filter by product name", "disabled": true },
+                { "key": "status", "value": "Submitted", "description": "Filter by status", "disabled": true }
+              ]
+            },
+            "description": "Admin only. Returns all products across all users with lightweight fields: id, name, status, createdAt, userEmail, variantCount."
+          }
+        },
+        {
+          "name": "Review Product — Approve",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Approved\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/products/{{productId}}/review",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "products", "{{productId}}", "review"]
+            },
+            "description": "Admin only. Approves a product. Only works when current status is `Submitted`."
+          }
+        },
+        {
+          "name": "Review Product — Reject",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Rejected\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/products/{{productId}}/review",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "products", "{{productId}}", "review"]
+            },
+            "description": "Admin only. Rejects a product. Only works when current status is `Submitted`."
+          }
+        }
+      ]
+    }
+  ]
+}
