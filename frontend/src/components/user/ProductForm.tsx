@@ -132,7 +132,7 @@ export default function ProductForm() {
         <div className="h-20" />
       </form>
 
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/90 backdrop-blur border-t border-gray-200 shadow-[0_-2px_12px_rgba(0,0,0,0.06)]">
+      <div className="fixed bottom-0 left-0 md:left-64 right-0 z-40 bg-white/90 backdrop-blur border-t border-gray-200 shadow-[0_-2px_12px_rgba(0,0,0,0.06)]">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-3">
           <p className="text-xs text-gray-400 hidden sm:block">All fields must be filled before submitting.</p>
           <div className="flex items-center gap-3 ml-auto">
