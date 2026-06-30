@@ -2,10 +2,14 @@
 
 A full-stack web application for role-based product submission and review. Users submit products with multiple variants (images, name, price) for admin review. Admins can approve or reject submissions from a dedicated dashboard.
 
+> **🚀 NEW TO THIS PROJECT?**  
+> **[Read GETTING_STARTED.md](GETTING_STARTED.md)** for complete setup instructions (Windows/Mac/Linux)
+
 ---
 
 ## Table of Contents
 
+- [Quick Start](#quick-start)
 - [Project Description](#project-description)
 - [Assumptions](#assumptions)
 - [Tech Stack](#tech-stack)
@@ -13,9 +17,31 @@ A full-stack web application for role-based product submission and review. Users
 - [Project Structure](#project-structure)
 - [Setup — Docker (recommended)](#setup--docker-recommended)
 - [Setup — Manual (without Docker)](#setup--manual-without-docker)
+- [Troubleshooting](#troubleshooting)
 - [Default Credentials](#default-credentials)
 - [Environment Variables](#environment-variables)
 - [API Documentation](#api-documentation)
+
+---
+
+## Quick Start
+
+### 🚀 Complete Setup Instructions
+
+**📖 [GETTING_STARTED.md](GETTING_STARTED.md)** - Full setup guide for Windows, Mac, and Linux (no Docker required)
+
+**⚡ Quick commands** (after initial setup):
+```bash
+# Terminal 1 - Backend
+cd backend
+npm run dev
+
+# Terminal 2 - Frontend
+cd frontend
+npm start
+```
+
+**🔑 Default login:** `user@example.com` / `user123` (User) or `admin@example.com` / `admin123` (Admin)
 
 ---
 
@@ -245,6 +271,26 @@ npm start
 ```
 
 Frontend runs on `http://localhost:3000`.
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+**Issue: Backend can't connect to database**
+- **Solution:** See [GETTING_STARTED.md - Database Connection](GETTING_STARTED.md#-error-cannot-connect-to-database)
+
+**Issue: CORS errors in browser**
+- **Solution:** See [GETTING_STARTED.md - CORS Issues](GETTING_STARTED.md#-error-cors-policy-blocking-requests)
+
+**Issue: Port already in use**
+- **Solution:** See [GETTING_STARTED.md - Port Issues](GETTING_STARTED.md#-error-port-already-in-use)
+
+**Issue: Migrations fail**
+- **Solution:** See [GETTING_STARTED.md - Migration Errors](GETTING_STARTED.md#-error-migration-fails---database-doesnt-exist)
+
+**📖 For complete troubleshooting guide:** See **[GETTING_STARTED.md](GETTING_STARTED.md#troubleshooting)**
 
 ---
 
